@@ -55,7 +55,16 @@ namespace GitHub.Runner.Worker.Handlers
             else if (data.ExecutionType == ActionExecutionType.NodeJS)
             {
                 handler = HostContext.CreateService<INodeScriptActionHandler>();
-                (handler as INodeScriptActionHandler).Data = data as NodeJSActionExecutionData;
+                var nodeData = data as NodeJSActionExecutionData;
+
+                // With node12 EoL in 04/2022 and node16 EoL in 09/23, we want to execute all JS actions using node20
+                if (string.Equals(nodeData.NodeVersion, "node12", StringComparison.InvariantCultureIgnoreCase) ||
+                    string.Equals(nodeData.NodeVersion, "node16", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    nodeData.NodeVersion = "node20";
+                }
+
+                (handler as INodeScriptActionHandler).Data = nodeData;
             }
             else if (data.ExecutionType == ActionExecutionType.Script)
             {

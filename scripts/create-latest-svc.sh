@@ -8,12 +8,12 @@ set -e
 # Configures it as a service more secure
 # Should be used on VMs and not containers
 # Works on OSX and Linux
-# Assumes x64 arch
+# Assumes x64 arch (support arm64)
 # See EXAMPLES below
 
 flags_found=false
 
-while getopts 's:g:n:u:l:' opt; do
+while getopts 's:g:n:r:u:l:df' opt; do
     flags_found=true
 
     case $opt in
@@ -26,11 +26,20 @@ while getopts 's:g:n:u:l:' opt; do
     n)
         runner_name=$OPTARG
         ;;
+    r)
+        runner_group=$OPTARG
+        ;;
     u)
         svc_user=$OPTARG
         ;;
     l)
         labels=$OPTARG
+        ;;
+    f)
+        replace='true'
+        ;;
+    d)
+        disableupdate='true'
         ;;
     *)
         echo "
@@ -44,8 +53,11 @@ Usage:
     -s          required  scope: repo (:owner/:repo) or org (:organization)
     -g          optional  ghe_hostname: the fully qualified domain name of your GitHub Enterprise Server deployment
     -n          optional  name of the runner, defaults to hostname
+    -r          optional  name of the runner group to add the runner to, defaults to the Default group
     -u          optional  user svc will run as, defaults to current
-    -l          optional  list of labels (split by comma) applied on the runner"
+    -l          optional  list of labels (split by comma) applied on the runner
+    -d          optional  allow runner to remain on the current version for one month after the release of a newer version
+    -f          optional  replace any existing runner with the same name"
         exit 0
         ;;
     esac
@@ -59,6 +71,7 @@ if ! "$flags_found"; then
     runner_name=${3:-$(hostname)}
     svc_user=${4:-$USER}
     labels=${5}
+    runner_group=${6}
 fi
 
 # apply defaults
@@ -73,6 +86,9 @@ sudo echo
 #---------------------------------------
 runner_plat=linux
 [ ! -z "$(which sw_vers)" ] && runner_plat=osx;
+
+runner_arch=x64
+[ ! -z "$(arch | grep arm64)" ] && runner_arch=arm64
 
 function fatal()
 {
@@ -126,7 +142,7 @@ echo "Downloading latest runner ..."
 # For the GHES Alpha, download the runner from github.com
 latest_version_label=$(curl -s -X GET 'https://api.github.com/repos/actions/runner/releases/latest' | jq -r '.tag_name')
 latest_version=$(echo ${latest_version_label:1})
-runner_file="actions-runner-${runner_plat}-x64-${latest_version}.tar.gz"
+runner_file="actions-runner-${runner_plat}-${runner_arch}-${latest_version}.tar.gz"
 
 if [ -f "${runner_file}" ]; then
     echo "${runner_file} exists. skipping download."
@@ -164,8 +180,8 @@ fi
 
 echo
 echo "Configuring ${runner_name} @ $runner_url"
-echo "./config.sh --unattended --url $runner_url --token *** --name $runner_name --labels $labels"
-sudo -E -u ${svc_user} ./config.sh --unattended --url $runner_url --token $RUNNER_TOKEN --name $runner_name --labels $labels
+echo "./config.sh --unattended --url $runner_url --token *** --name $runner_name ${labels:+--labels $labels} ${runner_group:+--runnergroup \"$runner_group\"} ${disableupdate:+--disableupdate}"
+sudo -E -u ${svc_user} ./config.sh --unattended --url $runner_url --token $RUNNER_TOKEN ${replace:+--replace} --name $runner_name ${labels:+--labels $labels} ${runner_group:+--runnergroup "$runner_group"} ${disableupdate:+--disableupdate}
 
 #---------------------------------------
 # Configuring as a service

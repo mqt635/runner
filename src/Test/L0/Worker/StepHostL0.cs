@@ -7,6 +7,7 @@ using Xunit;
 using GitHub.Runner.Worker;
 using GitHub.Runner.Worker.Handlers;
 using GitHub.Runner.Worker.Container;
+using GitHub.DistributedTask.WebApi;
 
 namespace GitHub.Runner.Common.Tests.Worker
 {
@@ -21,6 +22,7 @@ namespace GitHub.Runner.Common.Tests.Worker
             _ec = new Mock<IExecutionContext>();
             _ec.SetupAllProperties();
             _ec.Setup(x => x.Global).Returns(new GlobalContext { WriteDebug = true });
+            _ec.Object.Global.Variables = new Variables(hc, new Dictionary<string, VariableValue>());
             var trace = hc.GetTrace();
             _ec.Setup(x => x.Write(It.IsAny<string>(), It.IsAny<string>())).Callback((string tag, string message) => { trace.Info($"[{tag}]{message}"); });
 
@@ -29,6 +31,7 @@ namespace GitHub.Runner.Common.Tests.Worker
             return hc;
         }
 
+#if OS_LINUX
         [Fact]
         [Trait("Level", "L0")]
         [Trait("Category", "Worker")]
@@ -72,10 +75,37 @@ namespace GitHub.Runner.Common.Tests.Worker
                     .ReturnsAsync(0);
 
                 // Act.
-                var nodeVersion = await sh.DetermineNodeRuntimeVersion(_ec.Object, "node16");
+                var nodeVersion = await sh.DetermineNodeRuntimeVersion(_ec.Object, "node20");
 
                 // Assert.
-                Assert.Equal("node16_alpine", nodeVersion);
+                Assert.Equal("node20_alpine", nodeVersion);
+            }
+        }
+
+        [Fact]
+        [Trait("Level", "L0")]
+        [Trait("Category", "Worker")]
+        public async Task DetermineNode20RuntimeVersionInAlpineContainerAsync()
+        {
+            using (TestHostContext hc = CreateTestContext())
+            {
+                // Arrange.
+                var sh = new ContainerStepHost();
+                sh.Initialize(hc);
+                sh.Container = new ContainerInfo() { ContainerId = "1234abcd" };
+
+                _dc.Setup(d => d.DockerExec(_ec.Object, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<List<string>>()))
+                    .Callback((IExecutionContext ec, string id, string options, string command, List<string> output) =>
+                    {
+                        output.Add("alpine");
+                    })
+                    .ReturnsAsync(0);
+
+                // Act.
+                var nodeVersion = await sh.DetermineNodeRuntimeVersion(_ec.Object, "node20");
+
+                // Assert.
+                Assert.Equal("node20_alpine", nodeVersion);
             }
         }
 
@@ -99,11 +129,39 @@ namespace GitHub.Runner.Common.Tests.Worker
                     .ReturnsAsync(0);
 
                 // Act.
-                var nodeVersion = await sh.DetermineNodeRuntimeVersion(_ec.Object, "node16");
+                var nodeVersion = await sh.DetermineNodeRuntimeVersion(_ec.Object, "node20");
 
                 // Assert.
-                Assert.Equal("node16", nodeVersion);
+                Assert.Equal("node20", nodeVersion);
             }
         }
+
+        [Fact]
+        [Trait("Level", "L0")]
+        [Trait("Category", "Worker")]
+        public async Task DetermineNode20RuntimeVersionInUnknowContainerAsync()
+        {
+            using (TestHostContext hc = CreateTestContext())
+            {
+                // Arrange.
+                var sh = new ContainerStepHost();
+                sh.Initialize(hc);
+                sh.Container = new ContainerInfo() { ContainerId = "1234abcd" };
+
+                _dc.Setup(d => d.DockerExec(_ec.Object, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<List<string>>()))
+                    .Callback((IExecutionContext ec, string id, string options, string command, List<string> output) =>
+                    {
+                        output.Add("github");
+                    })
+                    .ReturnsAsync(0);
+
+                // Act.
+                var nodeVersion = await sh.DetermineNodeRuntimeVersion(_ec.Object, "node20");
+
+                // Assert.
+                Assert.Equal("node20", nodeVersion);
+            }
+        }
+#endif
     }
 }

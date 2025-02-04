@@ -32,10 +32,10 @@ namespace GitHub.Runner.Common.Tests.Worker
                                 hc.GetTrace().Info($"{tag} {line}");
                                 return 1;
                             });
-                _ec.Setup(x => x.AddIssue(It.IsAny<Issue>(), It.IsAny<string>()))
-                   .Callback((Issue issue, string message) =>
+                _ec.Setup(x => x.AddIssue(It.IsAny<Issue>(), It.IsAny<ExecutionContextLogOptions>()))
+                   .Callback((Issue issue, ExecutionContextLogOptions logOptions) =>
                    {
-                       hc.GetTrace().Info($"{issue.Type} {issue.Message} {message ?? string.Empty}");
+                       hc.GetTrace().Info($"{issue.Type} {issue.Message} {logOptions.LogMessageOverride ?? string.Empty}");
                    });
 
                 _commandManager.EnablePluginInternalCommand();
@@ -59,10 +59,10 @@ namespace GitHub.Runner.Common.Tests.Worker
                                 hc.GetTrace().Info($"{tag} {line}");
                                 return 1;
                             });
-                _ec.Setup(x => x.AddIssue(It.IsAny<Issue>(), It.IsAny<string>()))
-                   .Callback((Issue issue, string message) =>
+                _ec.Setup(x => x.AddIssue(It.IsAny<Issue>(), It.IsAny<ExecutionContextLogOptions>()))
+                   .Callback((Issue issue, ExecutionContextLogOptions logOptions) =>
                    {
-                       hc.GetTrace().Info($"{issue.Type} {issue.Message} {message ?? string.Empty}");
+                       hc.GetTrace().Info($"{issue.Type} {issue.Message} {logOptions.LogMessageOverride ?? string.Empty}");
                    });
 
                 _commandManager.EnablePluginInternalCommand();
@@ -92,10 +92,10 @@ namespace GitHub.Runner.Common.Tests.Worker
                                 return 1;
                             });
 
-                _ec.Setup(x => x.AddIssue(It.IsAny<Issue>(), It.IsAny<string>()))
-                   .Callback((Issue issue, string message) =>
+                _ec.Setup(x => x.AddIssue(It.IsAny<Issue>(), It.IsAny<ExecutionContextLogOptions>()))
+                   .Callback((Issue issue, ExecutionContextLogOptions logOptions) =>
                    {
-                       hc.GetTrace().Info($"{issue.Type} {issue.Message} {message ?? string.Empty}");
+                       hc.GetTrace().Info($"{issue.Type} {issue.Message} {logOptions.LogMessageOverride ?? string.Empty}");
                    });
 
                 _ec.Object.Global.EnvironmentVariables = new Dictionary<string, string>();
@@ -121,6 +121,7 @@ namespace GitHub.Runner.Common.Tests.Worker
             using (TestHostContext hc = CreateTestContext())
             {
                 _ec.Object.Global.EnvironmentVariables = new Dictionary<string, string>();
+                _ec.Object.Global.JobTelemetry = new List<JobTelemetry>();
                 var expressionValues = new DictionaryContextData
                 {
                     ["env"] =
@@ -131,7 +132,6 @@ namespace GitHub.Runner.Common.Tests.Worker
 #endif
                 };
                 _ec.Setup(x => x.ExpressionValues).Returns(expressionValues);
-                _ec.Setup(x => x.JobTelemetry).Returns(new List<JobTelemetry>());
 
                 Assert.True(_commandManager.TryProcessCommand(_ec.Object, $"::stop-commands::{invalidToken}", null));
             }
@@ -148,8 +148,8 @@ namespace GitHub.Runner.Common.Tests.Worker
             using (TestHostContext hc = CreateTestContext())
             {
                 _ec.Object.Global.EnvironmentVariables = new Dictionary<string, string>();
+                _ec.Object.Global.JobTelemetry = new List<JobTelemetry>();
                 _ec.Setup(x => x.ExpressionValues).Returns(GetExpressionValues());
-                _ec.Setup(x => x.JobTelemetry).Returns(new List<JobTelemetry>());
                 Assert.Throws<Exception>(() => _commandManager.TryProcessCommand(_ec.Object, $"::stop-commands::{invalidToken}", null));
             }
         }
@@ -228,11 +228,11 @@ namespace GitHub.Runner.Common.Tests.Worker
             {
                 // Set up a few things
                 // 1. Job request message (with ACTIONS_STEP_DEBUG = true)
-                TaskOrchestrationPlanReference plan = new TaskOrchestrationPlanReference();
-                TimelineReference timeline = new TimelineReference();
+                TaskOrchestrationPlanReference plan = new();
+                TimelineReference timeline = new();
                 Guid jobId = Guid.NewGuid();
                 string jobName = "some job name";
-                var jobRequest = new Pipelines.AgentJobRequestMessage(plan, timeline, jobId, jobName, jobName, null, null, null, new Dictionary<string, VariableValue>(), new List<MaskHint>(), new Pipelines.JobResources(), new Pipelines.ContextData.DictionaryContextData(), new Pipelines.WorkspaceOptions(), new List<Pipelines.ActionStep>(), null, null, null, null);
+                var jobRequest = new Pipelines.AgentJobRequestMessage(plan, timeline, jobId, jobName, jobName, null, null, null, new Dictionary<string, VariableValue>(), new List<MaskHint>(), new Pipelines.JobResources(), new Pipelines.ContextData.DictionaryContextData(), new Pipelines.WorkspaceOptions(), new List<Pipelines.ActionStep>(), null, null, null, null, null);
                 jobRequest.Resources.Repositories.Add(new Pipelines.RepositoryResource()
                 {
                     Alias = Pipelines.PipelineConstants.SelfAlias,
